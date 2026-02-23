@@ -138,6 +138,14 @@ def binary_to_decimal(binary):
             decimal += int(binary[len(binary) - 1 - i]) * (2 ** i)
     return decimal
 
+#This function converts a decimal integer to its hexadecimal representation by first converting the decimal value to binary and then converting that binary string to hexadecimal.
+#input: integer value (decimal number)
+#output: string (hexadecimal representation of the input decimal number)
+def decimal_to_hexadecimal(value):
+    binary = decimal_to_binary(value)
+    hexadecimal = binary_to_hexadecimal(binary)
+    return hexadecimal
+
 def main():
     while True:
         decimal_value = decimal_input()
