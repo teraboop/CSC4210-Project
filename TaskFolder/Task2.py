@@ -1,6 +1,7 @@
 import numpy as np
 
 def readTruthTableFile(boolean_file, variable_count):
+    # Reads a truth table from a file and stores the boolean values in a numpy array
     boolean_values = np.zeros((2 ** variable_count, variable_count + 1), dtype=int)
     with open(boolean_file, 'r') as f:
         row_index = 0
@@ -23,6 +24,7 @@ def readTruthTableFile(boolean_file, variable_count):
     return boolean_values
 
 def getNumberOfVariables():
+    # Prompts the user to input the number of variables in the truth table and validates the input
     while True:
         try:
             variable_count = int(input("How many variables are in the truth table? (Enter a positive integer): "))
@@ -36,12 +38,14 @@ def getNumberOfVariables():
             return variable_count
         
 def getTruthTableFileName():
+    # Gets the truth table file name from user input and appends .txt extension
     while True:
         boolean_file = input("Enter the name of the file containing the boolean values (no file extension): ")
         boolean_file += ".txt"
         return boolean_file
     
 def validateTruthTable(boolean_values, variable_count):
+    # Validates that the truth table has the correct dimensions for the given number of variables
     expected_length = (2 ** variable_count) * (variable_count + 1)
     actual_length = boolean_values.size
     if actual_length != expected_length:
@@ -49,6 +53,7 @@ def validateTruthTable(boolean_values, variable_count):
     return True
         
 def getOutputFormat():
+    # Prompts the user to select output format (SOP or POS) and validates the input
     while True:
         output_format = input("Would you like the equation to be in Sum of Products (SOP) or Product of Sums (POS) form? (Enter 'SOP' or 'POS'): ").strip().upper()
         if output_format in ['SOP', 'POS']:
@@ -57,13 +62,14 @@ def getOutputFormat():
             print("Invalid input. Please enter 'SOP' or 'POS'.")
 
 def getOutputColumn(boolean_values):
+    # Extracts the output column (last column) from the truth table
     outputColumn = []
     for row in boolean_values:
         outputColumn.append(row[-1])
     return outputColumn
 
 def generateSumOfProducts(boolean_values, variable_count):
-
+    # Generates the Sum of Products (SOP) form of the boolean function from the truth table
     sop_terms = []
     for i in range(boolean_values.shape[0]):
         if boolean_values[i, -1] == 1:
@@ -77,6 +83,7 @@ def generateSumOfProducts(boolean_values, variable_count):
     return ' + '.join(sop_terms)
 
 def generateProductOfSums(boolean_values, variable_count):
+    # Generates the Product of Sums (POS) form of the boolean function from the truth table
     pos_terms = []
     for i in range(boolean_values.shape[0]):
         if boolean_values[i, -1] == 0:
@@ -90,6 +97,7 @@ def generateProductOfSums(boolean_values, variable_count):
     return ''.join(pos_terms)
 
 def validateSimplifiedEquation(simplified_equation, boolean_values, variable_count):
+    # Validates a simplified equation by testing it against all rows of the truth table
     for i in range(boolean_values.shape[0]):
         expected_output = boolean_values[i, -1]
         variable_values = boolean_values[i, :variable_count]
@@ -109,6 +117,7 @@ def validateSimplifiedEquation(simplified_equation, boolean_values, variable_cou
     return True
 
 def printMintermMaxtermList(POS, SOP, variable_count):
+    # Prints the minterm list (for SOP) and maxterm list (for POS) from the boolean equations
     POS_terms = POS.split('*')
     SOP_terms = SOP.split('+')
     print("Minterm List:")
@@ -119,6 +128,7 @@ def printMintermMaxtermList(POS, SOP, variable_count):
         print(f"  {term}")
 
 def kmap_simplify(boolean_values, variable_count):
+    # Simplifies a boolean function using Karnaugh map grouping and selects optimal prime implicants
     if variable_count < 2 or variable_count > 4:
         raise ValueError("K-map grouping supports 2-4 variables only.")
 
