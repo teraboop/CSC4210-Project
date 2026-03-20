@@ -26,10 +26,10 @@ def getNumberOfVariables():
     while True:
         try:
             variable_count = int(input("How many variables are in the truth table? (Enter a positive integer): "))
-            if variable_count > 0:
+            if variable_count >= 2:
                 return variable_count
             else:
-                raise ValueError("Number of variables must be a positive integer.")
+                raise ValueError("Number of variables must be a positive integer 2 or greater.")
         except ValueError as e:
             print(f"Invalid input. Error: {e}")
         finally:
