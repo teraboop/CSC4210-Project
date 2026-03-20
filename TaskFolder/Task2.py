@@ -301,7 +301,6 @@ def main():
     
     print(f"{output_format}: {equation}")
     printMintermMaxtermList(generateProductOfSums(boolean_values, variable_count), generateSumOfProducts(boolean_values, variable_count), variable_count)
-    print(f"The {output_format} form of the equation is: {equation}")
     print(f"\nSimplified {output_format}: {simplified}")
     validateSimplifiedEquation(simplified, boolean_values, variable_count)
 
