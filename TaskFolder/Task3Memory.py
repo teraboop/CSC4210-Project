@@ -107,11 +107,13 @@ class Cache(Memory):
 
 class CPU:
 
-    def __init__(self, cache_size, memory_size):
-        self.data = [0] * memory_size // 8
-        self.L1_cache = Cache(cache_size)
+    def __init__(self, cache_size = 256): 
+        self.data = [0] * cache_size // 8
+        self.L1_cache = Cache(cache_size // 4)
         self.L2_cache = Cache(cache_size // 2)
-        self.L3_cache = Cache(cache_size // 4)
+        self.L3_cache = Cache(cache_size)
+        self.RAM = RAM(cache_size * 256)
+        self.SSD = SSD(cache_size * 4096)
         self.L2_cache.next = self.L1_cache
         self.L3_cache.next = self.L2_cache
         self.L1_cache.prev = self.L2_cache
