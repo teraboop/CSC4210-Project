@@ -1,4 +1,4 @@
-from unittest import case
+
 
 
 class Memory:
@@ -139,8 +139,8 @@ class CPU:
         self.L1_cache.read()
     
     def hierarchy_memory_transfer(self, destination, local_address):
-        if destination is not self.L3_cache:
-            raise ValueError("Destination must be within the CPU's cache hierarchy")
+        if destination is not self.L1_cache:
+            raise ValueError("Destination must be L1 Cache for CPU to follow hierarchy memory transfer")
         value = self.read(self, local_address)
         destination_address = destination.find_open_address()
         destination.write(destination_address, value)
