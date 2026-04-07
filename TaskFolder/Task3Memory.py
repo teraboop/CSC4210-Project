@@ -1,3 +1,6 @@
+from unittest import case
+
+
 class Memory:
 
     def __init__(self, size):
@@ -21,7 +24,13 @@ class Memory:
         destination.write(address, value)
         print(f"Transferred value {value} from {self.type} to {destination.type} at address {address}")
     
-    def mem_flush
+    def find_open_address(self):
+        for address in range(self.size):
+            if self.read(address) == 0:
+                return address
+        return None
+    
+    
         
 class SSD(Memory):
 
@@ -41,11 +50,8 @@ class SSD(Memory):
         if not isinstance(destination, RAM):
             raise ValueError("Destination must be RAM for SSD to RAM transfer")
         value = self.read(local_address)
-        for ram_address in range(destination.size):
-            if destination.read(ram_address) == 0:
-                destination.write(ram_address, value)
-                destination_address = ram_address
-                break
+        destination_address = destination.find_open_address()
+        destination.write(destination_address, value)
         print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
 
     
@@ -70,11 +76,8 @@ class RAM(Memory):
         if type(destination) == Cache and destination.prev is not None:
             raise ValueError("RAM can only transfer to L3 Cache in the CPU's cache hierarchy")
         value = self.read(local_address)
-        for dest_address in range(destination.size):
-            if destination.read(dest_address) == 0:
-                destination.write(dest_address, value)
-                destination_address = dest_address
-                break
+        destination_address = destination.find_open_address()
+        destination.write(destination_address, value)
         print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
 
 class Cache(Memory):
@@ -94,15 +97,28 @@ class Cache(Memory):
         print(f"Writing to {self.type} at address {address} with value {value}")
         super().write(address, value)
     
-    def hierarchy_memory_transfer(self, destination, local_address):
-        if not isinstance(destination,(Cache, RAM)):
+    def hierarchy_memory_transfer(self, destination, local_address, direction):
+        if not isinstance(destination, (Cache, RAM)):
             raise ValueError("Destination must be RAM or Cache for Cache to RAM/Cache transfer")
         value = self.read(local_address)
-        for ram_address in range(destination.size):
-            if destination.read(ram_address) == 0:
-                destination.write(ram_address, value)
-                destination_address = ram_address
-                break
+        match direction:
+            case "up":
+                match destination.type: 
+                    case "RAM":              
+                        destination_address = destination.find_open_address()
+                        destination.write(destination_address, value)
+                    case "Cache":
+                        if self.prev is None or destination != self.prev:
+                            raise ValueError("Invalid transfer direction: Cache can only transfer up to the previous level in the hierarchy")
+                        destination_address = destination.find_open_address()
+                        destination.write(destination_address, value)
+            case "down":               
+                if self.next is None or destination != self.next:
+                    raise ValueError("Invalid transfer direction: Cache can only transfer down to the next level in the hierarchy")
+                destination_address = destination.find_open_address()
+                destination.write(destination_address, value)
+
+                    
         print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
 
 class CPU:
@@ -126,10 +142,6 @@ class CPU:
         if destination is not self.L3_cache:
             raise ValueError("Destination must be within the CPU's cache hierarchy")
         value = self.read(self, local_address)
-        for cache_address in range(destination.size):
-            if destination.read(cache_address) == 0:
-                destination.write(cache_address, value)
-                destination_address = cache_address
-                print(f"Transferred value {value} from CPU to {destination.type} at address {destination_address}")
-                break
+        destination_address = destination.find_open_address()
+        destination.write(destination_address, value)
         
