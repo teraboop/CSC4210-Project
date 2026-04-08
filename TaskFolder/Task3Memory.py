@@ -38,6 +38,8 @@ class Memory:
         
 class SSD(Memory):
 
+    DRAM: next = None
+
     def __init__(self, size):
         super().__init__(size)
         self.type = "SSD"
@@ -58,8 +60,18 @@ class SSD(Memory):
         destination.write(destination_address, value)
         print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
 
+    def get_value(self, address):
+        
+        if address < self.size:
+            return self.read(address)
+        return None
+
 
 class DRAM(Memory):
+
+    SSD: prev = None
+    Cache: next = None
+
     def __init__(self, size):
         super().__init__(size)
         self.type = "DRAM"
@@ -72,11 +84,11 @@ class DRAM(Memory):
     def get_value(self, address):
         if self.has_address(address):
             return self.read(address)
-        return None
+        return self.load_from_lower_level(self.prev, address)
     
-    def load_from_ssd(self, ssd, address):
-        if address < ssd.size:
-            value = ssd.read(address)
+    def load_from_lower_level(self, lower_level, address):
+        value = lower_level.get_value(address)
+        if value is not None:
             self.write(address, value)
             self.cached_addresses.add(address)
             return value
@@ -92,10 +104,15 @@ class Cache(Memory):
         self.type = "Cache"
         self.cached_addresses = set()
         self.access_times = {}
+        self.dirty_addresses = {}
         self.bandwidth = 8
         self.hits = 0
         self.misses = 0
 
+
+    def write(self, address, value):
+        super().write(address, value)
+        self.dirty_addresses[address] = True
 
     def has_address(self, address):
         return address in self.cached_addresses
@@ -106,6 +123,9 @@ class Cache(Memory):
             self.access_times[address] = self.cycles
             return self.read(address)
         self.misses += 1
+
+        if self.prev is not None:
+            return self.load_from_lower_level(self.prev, address)
         return None
     
     def load_from_lower_level(self, lower_cache, address):
@@ -113,6 +133,7 @@ class Cache(Memory):
         if value is not None:
             self.write(address, value)
             self.cached_addresses.add(address)
+            self.dirty_addresses[address] = False
             return value
         return None
     
@@ -145,12 +166,26 @@ class Cache(Memory):
         print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
     
     def evict_lru(self):
-        if self.cached_addresses:
-            lru_address = min(self.cached_addresses, key=lambda a: self.access_times.get(a, 0))
-            self.data[lru_address] = 0
-            self.cached_addresses.remove(lru_address)
-            self.data[lru_address] = 0
-            return lru_address
+        if not self.cached_addresses:
+            return None
+        lru_address = min(self.cached_addresses, key=lambda a: self.access_times.get(a, 0))
+        if self.prev is not None:
+            value = self.read(lru_address)
+            lower_address = self.prev.find_open_address()
+            if lower_address is None and hasattr(self.prev, 'evict_lru'):
+                self.prev.evict_lru()
+                lower_address = self.prev.find_open_address()
+            
+            if lower_address is not None:
+                self.prev.write(lower_address, value)
+                if hasattr(self.prev, 'cached_addresses'):
+                    self.prev.cached_addresses.add(lower_address)
+                print(f"Write-back: {lru_address} from {self.type} to {self.prev.type}")
+
+        self.data[lru_address] = 0
+        self.cached_addresses.remove(lru_address)
+        self.data[lru_address] = 0
+        return lru_address
 
 class CPU:
 
@@ -169,23 +204,23 @@ class CPU:
         self.L3_cache.next = self.L2_cache
         self.L1_cache.prev = self.L2_cache
         self.L2_cache.prev = self.L3_cache
+        self.DRAM.next = self.L3_cache
+        self.DRAM.prev = self.SSD
+        self.SSD.next = self.DRAM
+
 
     def read(self, local_address):
-        value = self.L1_cache.get_value(local_address)
-        if value is None:
-            value = self.L2_cache.load_from_lower_level(self.L3_cache, local_address)
-        if value is None:
-            value = self.L2_cache.load_from_lower_level(self.DRAM, local_address)
-        if value is None:
-            self.DRAM.load_from_ssd(self.SSD, local_address)
-        
-
+        return self.L1_cache.get_value(local_address)
 
     def hierarchy_memory_transfer(self, destination, local_address):
         if destination is not self.L1_cache:
             raise ValueError("Destination must be L1 Cache for CPU to follow hierarchy memory transfer")
         value = self.read(self, local_address)
         destination_address = destination.find_open_address()
+        if destination_address is None:
+            evicted_address = destination.evict_lru()
+            print(f"Evicted address {evicted_address} from {destination.type} to make space for new transfer")
+            destination_address = evicted_address
         destination.write(destination_address, value)
     
     def simulate_cycle(self):
