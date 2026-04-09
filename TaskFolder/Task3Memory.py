@@ -38,11 +38,11 @@ class Memory:
         
 class SSD(Memory):
 
-    DRAM: next = None
 
     def __init__(self, size):
         super().__init__(size)
         self.type = "SSD"
+        self.next = None
 
     def read(self, address):
         print(f"Reading from {self.type} at address {address}")
@@ -69,14 +69,14 @@ class SSD(Memory):
 
 class DRAM(Memory):
 
-    SSD: prev = None
-    Cache: next = None
 
     def __init__(self, size):
         super().__init__(size)
         self.type = "DRAM"
         self.cached_addresses = set()
         self.bandwidth = 6
+        self.next = None
+        self.prev = None
     
     def has_address(self, address):
         return address in self.cached_addresses
@@ -96,8 +96,6 @@ class DRAM(Memory):
 
 class Cache(Memory):
 
-    Cache: next = None
-    Cache: prev = None
 
     def __init__(self, size):
         super().__init__(size)
@@ -108,6 +106,8 @@ class Cache(Memory):
         self.bandwidth = 8
         self.hits = 0
         self.misses = 0
+        self.next = None
+        self.prev = None
 
 
     def write(self, address, value):
