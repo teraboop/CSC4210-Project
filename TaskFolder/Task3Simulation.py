@@ -13,18 +13,17 @@ def main():
     print(f"Loaded {num_instructions} instructions into SSD\n")
     
     # Run simulation: fetch instructions and execute
-    
     num_accesses = 200
-    working_set_size = 24
     for access_num in range(num_accesses):
-        instr_address = random.randint(0, working_set_size - 1)  # Keep reusing same ~24 addresses
+        # Randomly select an instruction address from the loaded SSD range
+        instr_address = random.randint(0, num_instructions - 1)
         instruction = simulated_cpu.L1_cache.get_value(instr_address)
+        
         # Store temporarily
         reg_address = simulated_cpu.find_open_register()
         if reg_address is not None:
             simulated_cpu.write_register(reg_address, instruction)
             simulated_cpu.execute_instruction(instruction, reg_address)
-
         
         simulated_cpu.simulate_cycle()
     
