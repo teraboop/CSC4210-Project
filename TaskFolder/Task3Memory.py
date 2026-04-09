@@ -1,13 +1,13 @@
-
+import random
 
 
 class Memory:
 
     def __init__(self, size):
-        self.size = size
-        self.data = [0] * size
-        self.pending_transfers = []
         self.cycles = 0
+        self.size = size
+        self.data = [""] * size
+        self.pending_transfers = []
         self.bandwidth = 4
         self.transfers_this_cycle = 0
 
@@ -22,15 +22,10 @@ class Memory:
             self.data[address] = value
         else:
             raise ValueError("Address out of bounds")
-        
-    def hierarchy_memory_transfer(self, destination, address):
-        value = self.read(address)
-        destination.write(address, value)
-        print(f"Transferred value {value} from {self.type} to {destination.type} at address {address}")
     
     def find_open_address(self):
         for address in range(self.size):
-            if self.read(address) == 0:
+            if self.read(address) == "":
                 return address
         return None
     
@@ -52,18 +47,11 @@ class SSD(Memory):
         print(f"Writing to {self.type} at address {address} with value {value}")
         super().write(address, value)
 
-    def hierarchy_memory_transfer(self, destination, local_address):
-        if not isinstance(destination, DRAM):
-            raise ValueError("Destination must be DRAM for SSD to DRAM transfer")
-        value = self.read(local_address)
-        destination_address = destination.find_open_address()
-        destination.write(destination_address, value)
-        print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
-
     def get_value(self, address):
         
         if address < self.size:
-            return self.read(address)
+            value = self.read(address)
+            return value if value != "" else None
         return None
 
 
@@ -89,10 +77,32 @@ class DRAM(Memory):
     def load_from_lower_level(self, lower_level, address):
         value = lower_level.get_value(address)
         if value is not None:
-            self.write(address, value)
-            self.cached_addresses.add(address)
-            return value
+            open_address = self.find_open_address()
+            if open_address is not None:
+                self.write(open_address, value)
+                self.cached_addresses.add(open_address)
+                return value
         return None
+    
+    def write_back(self, destination, local_address, value):
+        if not isinstance(destination, (SSD, Cache)):
+            raise ValueError("Destination must be SSD or Cache for DRAM transfer")
+        value = self.read(local_address)
+        match destination.type: 
+            case "SSD":              
+                destination_address = destination.find_open_address()
+                destination.write(destination_address, value)
+            case "Cache":
+                if self.prev is None or destination != self.prev:
+                    raise ValueError("Invalid transfer direction: DRAM can only transfer up to the previous level in the hierarchy")
+                destination_address = destination.find_open_address()
+                if destination_address is None:
+                    evicted_address = destination.evict_lru()
+                    print(f"Evicted address {evicted_address} from {destination.type} to make space for new transfer")
+                    destination_address = evicted_address
+                destination.write(destination_address, value)
+
+        print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
 
 class Cache(Memory):
 
@@ -131,38 +141,41 @@ class Cache(Memory):
     def load_from_lower_level(self, lower_cache, address):
         value = lower_cache.get_value(address)
         if value is not None:
-            self.write(address, value)
-            self.cached_addresses.add(address)
-            self.dirty_addresses[address] = False
-            return value
+            open_address = self.find_open_address()
+            if open_address is not None:
+                self.write(open_address, value)
+                self.cached_addresses.add(open_address)
+                self.dirty_addresses[open_address] = False
+                return value
+            else:
+                evicted_address = self.evict_lru()
+                if evicted_address is not None:
+                    self.write(evicted_address, value)
+                    self.cached_addresses.add(evicted_address)
+                    self.dirty_addresses[evicted_address] = False
+                    return value
         return None
     
-    def hierarchy_memory_transfer(self, destination, local_address, direction):
+    def write_back(self, destination, local_address, value):
         if not isinstance(destination, (Cache, DRAM)):
             raise ValueError("Destination must be DRAM or Cache for Cache to DRAM/Cache transfer")
         value = self.read(local_address)
-        match direction:
-            case "up":
-                match destination.type: 
-                    case "DRAM":              
-                        destination_address = destination.find_open_address()
-                        destination.write(destination_address, value)
-                    case "Cache":
-                        if self.prev is None or destination != self.prev:
-                            raise ValueError("Invalid transfer direction: Cache can only transfer up to the previous level in the hierarchy")
-                        destination_address = destination.find_open_address()
-                        if destination_address is None:
-                            evicted_address = destination.evict_lru()
-                            print(f"Evicted address {evicted_address} from {destination.type} to make space for new transfer")
-                            destination_address = evicted_address
-                        destination.write(destination_address, value)
-            case "down":               
-                if self.next is None or destination != self.next:
-                    raise ValueError("Invalid transfer direction: Cache can only transfer down to the next level in the hierarchy")
+        match destination.type: 
+            case "DRAM":              
                 destination_address = destination.find_open_address()
                 destination.write(destination_address, value)
+            case "Cache":
+                if destination != self.prev:
+                    raise ValueError("Invalid transfer direction: Cache can only transfer up to the previous level in the hierarchy")
+                destination_address = destination.find_open_address()
+                if destination_address is None:
+                    evicted_address = destination.evict_lru()
+                    print(f"Evicted address {evicted_address} from {destination.type} to make space for new transfer")
+                    destination_address = evicted_address
+                if destination_address is None:
+                    raise ValueError("No available address in destination cache after eviction attempt")
+                destination.write_back(destination.prev, destination_address, value)
 
-                    
         print(f"Transferred value {value} from {self.type} to {destination.type} at address {destination_address}")
     
     def evict_lru(self):
@@ -182,9 +195,8 @@ class Cache(Memory):
                     self.prev.cached_addresses.add(lower_address)
                 print(f"Write-back: {lru_address} from {self.type} to {self.prev.type}")
 
-        self.data[lru_address] = 0
         self.cached_addresses.remove(lru_address)
-        self.data[lru_address] = 0
+        self.data[lru_address] = ""
         return lru_address
 
 class CPU:
@@ -192,42 +204,70 @@ class CPU:
     def __init__(self, cache_size = 256): 
         self.total_cycles = 0
         self.instruction_count = 0
-        self.data = [0] * cache_size // 8
+        self.access_times = {}
+        self.registers = [""] * (cache_size // 8)
         self.L1_cache = Cache(cache_size // 4)
         self.L2_cache = Cache(cache_size // 2)
         self.L3_cache = Cache(cache_size)
         self.L2_cache.bandwidth = 12
         self.L1_cache.bandwidth = 16
-        self.DRAM = DRAM(cache_size * 256)
-        self.SSD = SSD(cache_size * 2048)
+        self.DRAM = DRAM(cache_size * 16)
+        self.SSD = SSD(cache_size * 64)
         self.L2_cache.next = self.L1_cache
         self.L3_cache.next = self.L2_cache
         self.L1_cache.prev = self.L2_cache
         self.L2_cache.prev = self.L3_cache
+        self.L3_cache.prev = self.DRAM
         self.DRAM.next = self.L3_cache
         self.DRAM.prev = self.SSD
         self.SSD.next = self.DRAM
 
 
-    def read(self, local_address):
-        return self.L1_cache.get_value(local_address)
+    def read_into_register(self, local_address, data):
+        self.simulate_cycle()
+        self.registers[local_address] = data
+        return local_address
 
-    def hierarchy_memory_transfer(self, destination, local_address):
+    def read_from_register(self, address):
+        self.simulate_cycle()
+        return self.registers[address]
+
+    def write_back(self, destination, local_address):
         if destination is not self.L1_cache:
             raise ValueError("Destination must be L1 Cache for CPU to follow hierarchy memory transfer")
-        value = self.read(self, local_address)
+        value = self.read_from_register(local_address)
         destination_address = destination.find_open_address()
         if destination_address is None:
             evicted_address = destination.evict_lru()
             print(f"Evicted address {evicted_address} from {destination.type} to make space for new transfer")
             destination_address = evicted_address
-        destination.write(destination_address, value)
+        for i in range(random.randint(1, 5)):  # Simulate multiple cycles for CPU memory transfer
+            self.simulate_cycle()
+        destination.write_back(destination.prev, destination_address, value)
+        self.registers[local_address] = ""
     
     def simulate_cycle(self):
         self.total_cycles += 1
-        self.L1_cache.cycles += 1
-        self.L2_cache.cycles += 1
-        self.L3_cache.cycles += 1
-        self.DRAM.cycles += 1
-        self.SSD.cycles += 1
+        for memory in [self.L1_cache, self.L2_cache, self.L3_cache, self.DRAM, self.SSD]:
+            memory.cycles += 1
+
+    def execute_instruction(self, instruction, register_address):
+        self.instruction_count += 1
+        for _ in range(random.randint(1, 3)): # Simulate multiple cycles for instruction execution
+            self.simulate_cycle()
+        self.write_back(self.L1_cache, register_address)
+        self.registers[register_address] = ""
+
+    def write_register(self, local_address, value):
+        self.registers[local_address] = value
+        self.simulate_cycle()
+
+    def find_open_register(self):
+        for address in range(len(self.registers)):
+            if self.registers[address] == "":
+                return address
+        return None
+
+        
+        
         

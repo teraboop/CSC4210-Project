@@ -168,4 +168,3 @@ def main():
             print("Invalid output type selected. Please choose DEC, BIN, or HEX.")
         if input("Do you want to continue? (Y/N): ").upper() != "Y":
             break
-main()
