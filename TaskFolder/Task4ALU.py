@@ -1,4 +1,5 @@
 import Task4MUX
+import Task4BUS
 
 
 class ALU:
@@ -41,4 +42,4 @@ class ALU:
         return self._to_bin32(~int(A, 2))
 
     def output(self):
-        return self.result
+        return Task4BUS.BUS.load_instruction(self.result)
