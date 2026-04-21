@@ -12,7 +12,7 @@ class ControlModule:
         self.invert_B = 0
 
     def generate_control_signals(self, BUS):
-        opcode = BUS.data[0:6]
+        opcode = BUS.data[26:32]
         funct3 = BUS.data[17:20]
         self.invert_A = 0
         self.invert_B = 0

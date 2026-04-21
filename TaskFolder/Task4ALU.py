@@ -13,10 +13,13 @@ class ALU:
         self.invertBMUX = Task4MUX.MUX(2)
 
     def operate(self, ALUControl, A, B, invert_A, invert_B):
-        A = self.invertAMUX.mux([A, self.not_op(A)], invert_A)
-        B = self.invertBMUX.mux([B, self.not_op(B)], invert_B)
-        self.result[0] = self.MUX.mux(
-            [self.add(A, B), self.subtract(A, B), self.and_op(A, B), self.or_op(A, B), self.not_op(A)], int(ALUControl, 2)
+        self.A[0] = A
+        self.B[0] = B
+        A = self.invertAMUX.mux([lambda: A, lambda: self.not_op(A)], invert_A)
+        B = self.invertBMUX.mux([lambda: B, lambda: self.not_op(B)], invert_B)
+        self.result = self.MUX.mux(
+            [lambda: self.add(A, B), lambda: self.subtract(A, B), lambda: self.and_op(A, B), lambda: self.or_op(A, B), lambda: self.not_op(A)],
+            int(ALUControl, 2)
         )
 
     def _to_signed(self, binary):
@@ -42,4 +45,6 @@ class ALU:
         return self._to_bin32(~int(A, 2))
 
     def output(self):
-        return Task4BUS.BUS.load_instruction(self.result)
+        bus = Task4BUS.BUS()
+        bus.load_instruction(self.result)
+        return bus
